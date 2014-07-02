@@ -19,21 +19,32 @@ end
 
 if node['opsline-rails-app']['rbenv']['use']
   include_recipe 'ruby_build'
+
+  node.default['rbenv']['user_installs'] = [
+    {'user' => node['opsline-rails-app']['owner']}
+  ]
   include_recipe 'rbenv::user_install'
-  rbenv_ruby node['opsline-rails-app']['rbenv']['ruby_version'] do
-    action :install
+
+  rbenv_ruby "ruby for #{node['opsline-rails-app']['owner']}" do
+    definition node['opsline-rails-app']['rbenv']['ruby_version']
     user node['opsline-rails-app']['owner']
   end
   rbenv_global node['opsline-rails-app']['rbenv']['ruby_version'] do
-    action :create
     rbenv_version node['opsline-rails-app']['rbenv']['ruby_version']
     user node['opsline-rails-app']['owner']
   end
-  rbenv_gem 'bundler' do
-    action :install
+  rbenv_gem "bundler for #{node['opsline-rails-app']['owner']}" do
+    package_name 'bundler'
     rbenv_version node['opsline-rails-app']['rbenv']['ruby_version']
     user node['opsline-rails-app']['owner']
   end
+end
+
+directory node['opsline-rails-app']['apps_root'] do
+  action :create
+  owner node['opsline-rails-app']['owner']
+  group node['opsline-rails-app']['owner']
+  mode 0755
 end
 
 # install all configured rails apps
@@ -70,6 +81,14 @@ node['opsline-rails-app']['apps'].each do |app_id|
     container_parameters = {}
   end
   artifact_version = get_env_value(app_data['version'])
+
+  # create app directory
+  directory app_data['deploy_to'] do
+    action :create
+    owner node['opsline-rails-app']['owner']
+    group node['opsline-rails-app']['owner']
+    mode 0755
+  end
 
   # environment variables hash
   env_dict = {}
@@ -246,4 +265,3 @@ node['opsline-rails-app']['apps'].each do |app_id|
   end
   
 end
-

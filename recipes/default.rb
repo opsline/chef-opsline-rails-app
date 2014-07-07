@@ -17,7 +17,7 @@ user node['opsline-rails-app']['owner'] do
   not_if "id #{node['opsline-rails-app']['owner']} >/dev/null 2>&1"
 end
 
-if node['opsline-rails-app']['rbenv']['use']
+if node['opsline-rails-app']['ruby']['provider'] == 'rbenv'
   include_recipe 'ruby_build'
 
   node.default['rbenv']['user_installs'] = [
@@ -26,17 +26,19 @@ if node['opsline-rails-app']['rbenv']['use']
   include_recipe 'rbenv::user_install'
 
   rbenv_ruby "ruby for #{node['opsline-rails-app']['owner']}" do
-    definition node['opsline-rails-app']['rbenv']['ruby_version']
+    definition node['opsline-rails-app']['ruby']['version']
     user node['opsline-rails-app']['owner']
   end
-  rbenv_global node['opsline-rails-app']['rbenv']['ruby_version'] do
-    rbenv_version node['opsline-rails-app']['rbenv']['ruby_version']
+  rbenv_global node['opsline-rails-app']['ruby']['version'] do
+    rbenv_version node['opsline-rails-app']['ruby']['version']
     user node['opsline-rails-app']['owner']
   end
-  rbenv_gem "bundler for #{node['opsline-rails-app']['owner']}" do
-    package_name 'bundler'
-    rbenv_version node['opsline-rails-app']['rbenv']['ruby_version']
-    user node['opsline-rails-app']['owner']
+  node['opsline-rails-app']['ruby']['gems'].each do |gem_name|
+    rbenv_gem "#{gem_name} for #{node['opsline-rails-app']['owner']}" do
+      package_name gem_name
+      rbenv_version node['opsline-rails-app']['ruby']['version']
+      user node['opsline-rails-app']['owner']
+    end
   end
 end
 
@@ -126,7 +128,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
   # deploy artifact
   artifact_deploy app_name do
     version artifact_version
-    artifact_location "#{app_data['artifact_location']}/#{app_name}-#{artifact_version}.#{pkg_type}"
+    artifact_location "#{app_data['artifact_location']}/#{app_name}-#{artifact_version}.#{app_data['package_type']}"
     deploy_to app_data['deploy_to']
     owner node['opsline-rails-app']['owner']
     group node['opsline-rails-app']['owner']
@@ -251,6 +253,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
         end
         
       elsif app_data['container'] == 'passenger'
+
       end
     }
   

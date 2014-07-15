@@ -1,0 +1,18 @@
+upstream unicorn_<%= @app_name %> {
+  server unix:<%= @deploy_to %>/shared/sockets/<%= @app_name %>.socket fail_timeout=0;
+}
+
+server {
+  listen <%= @port %>;
+
+  server_name <%= @server_name %>
+
+  access_log <%= @deploy_to %>/shared/log/access.log;
+  error_log <%= @deploy_to %>/shared/log/error.log;
+
+  root <%= @deploy_to %>/current/public/;
+
+  location / {
+    proxy_pass http://unicorn_<%= @app_name %>;
+  }
+}

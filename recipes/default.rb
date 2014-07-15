@@ -66,7 +66,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
 
   # set default parameters if not provided
   unless app_data.has_key?('deploy_to')
-    app_data['deploy_to'] = "/#{node['opsline-rails-app']['apps_root']}/#{app_name}"
+    app_data['deploy_to'] = "#{node['opsline-rails-app']['apps_root']}/#{app_name}"
   end
   unless app_data.has_key?('artifact_location')
     app_data['artifact_location'] = "s3://s3.amazonaws.com/#{node['opsline-rails-app']['s3_bucket']}/#{app_name}"
@@ -113,7 +113,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
     mode 0644
     variables({ :env => env_dict })
   end
-  
+
   # install pre-requisite packages
   if app_data.has_key?('packages')
     app_data['packages'].each do |pkg_name|
@@ -122,6 +122,8 @@ node['opsline-rails-app']['apps'].each do |app_id|
       end
     end
   end
+
+  services_to_restart = []
 
 
 
@@ -140,7 +142,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
     action :deploy
     keep 3
     force false
-    
+
     # remove log directory before linking
     before_symlink Proc.new {
       directory "#{app_data['deploy_to']}/releases/#{artifact_version}/log" do
@@ -148,7 +150,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
         recursive true
       end
     }
-  
+
     # before deployment proc
     # before_deploy Proc.new {
       # service app_name do
@@ -156,15 +158,10 @@ node['opsline-rails-app']['apps'].each do |app_id|
         # action :stop
       # end
     # }
-  
+
     # configure proc
     configure Proc.new {
 
-      service app_name do
-        provider Chef::Provider::Service::Upstart
-        action :nothing
-      end
-      
       if app_data['container'] == 'unicorn'
         # get container parameters
         unless container_parameters.has_key?('timeout')
@@ -173,7 +170,13 @@ node['opsline-rails-app']['apps'].each do |app_id|
         unless container_parameters.has_key?('worker_processes')
           container_parameters['worker_processes'] = node['opsline-rails-app']['unicorn']['worker_processes']
         end
-        
+        unless container_parameters.has_key?('frontend')
+          container_parameters['frontend'] = ''
+        end
+        unless container_parameters.has_key?('frontend_port')
+          container_parameters['frontend_port'] = '8080'
+        end
+
         unicorn_config = "#{app_data['deploy_to']}/shared/config/unicorn.rb"
         template unicorn_config do
           source 'unicorn.rb.erb'
@@ -208,14 +211,23 @@ node['opsline-rails-app']['apps'].each do |app_id|
             :exec_command => "unicorn -c #{unicorn_config}"
           })
         end
+        service app_name do
+          provider Chef::Provider::Service::Upstart
+          action :nothing
+        end
+        services_to_restart << [app_name, Chef::Provider::Service::Upstart]
 
-        if File.directory?('/etc/nginx/sites-available')
+        if container_parameters['frontend'] == 'nginx'
           service 'nginx' do
             action :nothing
           end
+          services_to_restart << ['nginx', Chef::Provider::Service::Init]
+          directory '/etc/nginx'
+          directory '/etc/nginx/sites-available'
+          directory '/etc/nginx/sites-enabled'
           template "/etc/nginx/sites-available/#{app_name}" do
-            source 'nginx.conf.erb'
-            cookbook 'adaptly-app-rails'
+            source 'nginx.unicorn.conf.erb'
+            cookbook 'opsline-rails-app'
             owner 'root'
             group 'root'
             mode 0644
@@ -224,7 +236,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
             variables({
               :app_name => app_name,
               :deploy_to => app_data['deploy_to'],
-              :port => '8080',
+              :port => container_parameters['frontend_port'],
               :server_name => "#{app_name}.#{node.domain}"
             })
           end
@@ -251,20 +263,66 @@ node['opsline-rails-app']['apps'].each do |app_id|
             :exec_command => "rails server -P #{app_data['deploy_to']}/shared/pids/server.pid"
           })
         end
-        
+        service app_name do
+          provider Chef::Provider::Service::Upstart
+          action :nothing
+        end
+        services_to_restart << [app_name, Chef::Provider::Service::Upstart]
+
       elsif app_data['container'] == 'passenger'
+        unless container_parameters.has_key?('frontend')
+          container_parameters['frontend'] = ''
+        end
+        unless container_parameters.has_key?('frontend_port')
+          container_parameters['frontend_port'] = '8080'
+        end
+
+        if container_parameters['frontend'] == 'nginx'
+          service 'nginx' do
+            action :nothing
+          end
+          services_to_restart << ['nginx', Chef::Provider::Service::Init]
+          directory '/etc/nginx'
+          directory '/etc/nginx/sites-available'
+          directory '/etc/nginx/sites-enabled'
+          template "/etc/nginx/sites-available/#{app_name}" do
+            source 'nginx.passenger.conf.erb'
+            cookbook 'opsline-rails-app'
+            owner 'root'
+            group 'root'
+            mode 0644
+            action :create
+            notifies :restart, resources(:service => 'nginx'), :delayed
+            variables({
+              :app_name => app_name,
+              :deploy_to => app_data['deploy_to'],
+              :port => container_parameters['frontend_port'],
+              :server_name => "#{app_name}.#{node.domain}"
+            })
+          end
+          link "#{app_name} nginx site" do
+            target_file "/etc/nginx/sites-enabled/#{app_name}"
+            to "/etc/nginx/sites-available/#{app_name}"
+          end
+        end
 
       end
     }
-  
+
     # restart proc
     restart Proc.new {
-      service app_name do
-        provider Chef::Provider::Service::Upstart
-        action :restart
+      services_to_restart.each do |service_to_restart|
+        service service_to_restart[0] do
+          provider service_to_restart[1]
+          action :restart
+        end
       end
+      #service app_name do
+      #  provider Chef::Provider::Service::Upstart
+      #  action :restart
+      #end
     }
-    
+
   end
-  
+
 end

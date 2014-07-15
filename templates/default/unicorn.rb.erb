@@ -2,25 +2,15 @@ app = "<%= @app_name %>"
 user = "<%= @user %>"
 env = (ENV["RAILS_ENV"] || "<%= @environment['RAILS_ENV'] %>" || "development")
 preload_app true
-timeout <%= @parameters['timeout'] %> || 45
+timeout <%= @parameters['timeout'] %>
 
-# Production specific settings
-if env == "production" || env == "staging"
-  # Help ensure your application will always spawn in the symlinked
-  # "current" directory that Capistrano sets up.
-  working_directory "<%= @deploy_to %>/current"
-
-  # feel free to point this anywhere accessible on the filesystem
-  shared_path = "<%= @deploy_to %>/shared"
-
-  stderr_path "#{shared_path}/log/unicorn.stderr.log"
-  stdout_path "#{shared_path}/log/unicorn.stdout.log"
-  worker_processes <%= @parameters['worker_processes'] %> || 8
-  listen "<%= @deploy_to %>/shared/sockets/#{app}.socket", :backlog => 1024
-  pid "<%= @deploy_to %>/shared/pids/unicorn.#{app}.pid"
-else
-  worker_processes <%= @parameters['worker_processes'] %> || 2
-end
+working_directory "<%= @deploy_to %>/current"
+shared_path = "<%= @deploy_to %>/shared"
+stderr_path "#{shared_path}/log/unicorn.stderr.log"
+stdout_path "#{shared_path}/log/unicorn.stdout.log"
+listen "<%= @deploy_to %>/shared/sockets/#{app}.socket", :backlog => 1024
+pid "<%= @deploy_to %>/shared/pids/unicorn.#{app}.pid"
+worker_processes <%= @parameters['worker_processes'] %>
 
 before_fork do |server, worker|
   # the following is highly recomended for Rails + "preload_app true"

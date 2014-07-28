@@ -112,15 +112,6 @@ node['opsline-rails-app']['apps'].each do |app_id|
       # end
     # }
 
-    # migrate db
-    migrate Proc.new {
-      execute "bundle exec rake db:migrate" do
-        cwd "#{app_data['deploy_to']}/releases/#{artifact_version}/"
-        environment 'RAILS_ENV' => app_data['environment']
-        user node['opsline-rails-app']['owner']
-        group node['opsline-rails-app']['owner']
-      end
-    }
 
     # configure proc
     configure Proc.new {

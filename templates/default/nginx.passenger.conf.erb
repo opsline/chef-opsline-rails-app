@@ -10,5 +10,8 @@ server {
     index index.html index.htm;
     passenger_enabled on;
     passenger_app_env '<%= node.chef_environment %>';
+    <% @env.each do |key, value| -%>
+    passenger_set_cgi_param <%= key %> <%= value %>;
+    <% end -%>
   }
 }

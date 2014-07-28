@@ -250,7 +250,8 @@ node['opsline-rails-app']['apps'].each do |app_id|
               :app_name => app_name,
               :deploy_to => app_data['deploy_to'],
               :port => container_parameters['frontend_port'],
-              :server_name => "#{app_name}.#{node.domain}"
+              :server_name => "#{app_name}.#{node.domain}",
+              :env => env_dict
             })
           end
           link "#{app_name} nginx site" do

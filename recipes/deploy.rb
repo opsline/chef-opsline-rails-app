@@ -276,4 +276,11 @@ node['opsline-rails-app']['apps'].each do |app_id|
 
   end
 
+  execute "rake db:migrate" do
+    command "/home/rails/.rbenv/shims/bundle exec rake db:migrate"
+    user node['opsline-rails-app']['owner']
+    environment 'RAILS_ENV' => node.chef_environment, 'RACK_ENV' => node.chef_environment, 'DATABASE_URL' => app_data['environment']['default']['DATABASE_URL']
+    cwd "#{app_data['deploy_to']}/releases/#{artifact_version}/bin"
+  end
+
 end

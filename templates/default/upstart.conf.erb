@@ -12,8 +12,8 @@ respawn
 
 script
 exec /bin/bash -l <<'EOT'
-  cd <%= @deploy_to %>/current
   source <%= @deploy_to %>/environment
+  cd <%= @deploy_to %>/current
   exec bundle exec <%= @exec_command %> >>$APP_DIR/shared/log/upstart.log 2>&1
 EOT
 end script

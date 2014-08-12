@@ -77,6 +77,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
   end
 
   services_to_restart = []
+  pids_to_signal = []
 
 
 
@@ -115,8 +116,8 @@ node['opsline-rails-app']['apps'].each do |app_id|
     # configure proc
     configure Proc.new {
 
+      # UNICORN
       if app_data['container'] == 'unicorn'
-        # get container parameters
         unless container_parameters.has_key?('timeout')
           container_parameters['timeout'] = node['opsline-rails-app']['unicorn']['timeout']
         end
@@ -124,7 +125,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
           container_parameters['worker_processes'] = node['opsline-rails-app']['unicorn']['worker_processes']
         end
         unless container_parameters.has_key?('frontend')
-          container_parameters['frontend'] = ''
+          container_parameters['frontend'] = 'nginx'
         end
         unless container_parameters.has_key?('frontend_port')
           container_parameters['frontend_port'] = '8080'
@@ -149,7 +150,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
         end
 
         template "/etc/init/#{app_name}.conf" do
-          source 'upstart.conf.erb'
+          source 'upstart.unicorn.conf.erb'
           cookbook 'opsline-rails-app'
           owner 'root'
           group 'root'
@@ -168,7 +169,12 @@ node['opsline-rails-app']['apps'].each do |app_id|
           provider Chef::Provider::Service::Upstart
           action :nothing
         end
-        services_to_restart << [app_name, Chef::Provider::Service::Upstart]
+        pidfile = "#{app_data['deploy_to']}/shared/pids/unicorn.#{app_name}.pid"
+        if File.exists?(pidfile)
+          pids_to_signal << [File.read(pidfile).to_i, 'USR2']
+        else
+          services_to_restart << [app_name, Chef::Provider::Service::Upstart]
+        end
 
         if container_parameters['frontend'] == 'nginx'
           service 'nginx' do
@@ -199,32 +205,10 @@ node['opsline-rails-app']['apps'].each do |app_id|
           end
         end
 
-      elsif app_data['container'] == 'rack'
-        template "/etc/init/#{app_name}.conf" do
-          source 'upstart.conf.erb'
-          cookbook 'opsline-rails-app'
-          owner 'root'
-          group 'root'
-          mode 0444
-          action :create
-          notifies :restart, "service[#{app_name}]"
-          variables({
-            :app_name => app_name,
-            :user => node['opsline-rails-app']['owner'],
-            :group => node['opsline-rails-app']['owner'],
-            :deploy_to => app_data['deploy_to'],
-            :exec_command => "rails server -P #{app_data['deploy_to']}/shared/pids/server.pid"
-          })
-        end
-        service app_name do
-          provider Chef::Provider::Service::Upstart
-          action :nothing
-        end
-        services_to_restart << [app_name, Chef::Provider::Service::Upstart]
-
+      # PASSENGER
       elsif app_data['container'] == 'passenger'
         unless container_parameters.has_key?('frontend')
-          container_parameters['frontend'] = ''
+          container_parameters['frontend'] = 'nginx'
         end
         unless container_parameters.has_key?('frontend_port')
           container_parameters['frontend_port'] = '8080'
@@ -260,6 +244,77 @@ node['opsline-rails-app']['apps'].each do |app_id|
           end
         end
 
+      # RACK
+      elsif app_data['container'] == 'rack'
+        template "/etc/init/#{app_name}.conf" do
+          source 'upstart.conf.erb'
+          cookbook 'opsline-rails-app'
+          owner 'root'
+          group 'root'
+          mode 0444
+          action :create
+          notifies :restart, "service[#{app_name}]"
+          variables({
+            :app_name => app_name,
+            :user => node['opsline-rails-app']['owner'],
+            :group => node['opsline-rails-app']['owner'],
+            :deploy_to => app_data['deploy_to'],
+            :exec_command => "rails server -P #{app_data['deploy_to']}/shared/pids/server.pid"
+          })
+        end
+        service app_name do
+          provider Chef::Provider::Service::Upstart
+          action :nothing
+        end
+        services_to_restart << [app_name, Chef::Provider::Service::Upstart]
+
+      # WORKER
+      elsif app_data['container'] == 'worker'
+        unless container_parameters.has_key?('number_of_workers')
+          container_parameters['number_of_workers'] = 4
+        end
+        unless container_parameters.has_key?('bundle_exec_command')
+          container_parameters['bundle_exec_command'] = ''
+        end
+
+        template "/etc/init/#{app_name}-worker.conf" do
+          source 'upstart.worker.conf.erb'
+          cookbook 'opsline-rails-app'
+          owner 'root'
+          group 'root'
+          mode 0444
+          action :create
+          notifies :restart, "service[#{app_name}]"
+          variables({
+            :app_name => app_name,
+            :user => node['opsline-rails-app']['owner'],
+            :group => node['opsline-rails-app']['owner'],
+            :deploy_to => app_data['deploy_to'],
+            :exec_command => container_parameters['bundle_exec_command']
+          })
+        end
+        template "/etc/init/#{app_name}.conf" do
+          source 'upstart.workers.conf.erb'
+          cookbook 'opsline-rails-app'
+          owner 'root'
+          group 'root'
+          mode 0444
+          action :create
+          notifies :restart, "service[#{app_name}]"
+          variables({
+            :app_name => app_name,
+            :user => node['opsline-rails-app']['owner'],
+            :group => node['opsline-rails-app']['owner'],
+            :deploy_to => app_data['deploy_to'],
+            :number_of_workers => container_parameters['number_of_workers']
+          })
+        end
+        service app_name do
+          provider Chef::Provider::Service::Upstart
+          action :nothing
+        end
+        services_to_restart << [app_name, Chef::Provider::Service::Upstart]
+
       end
     }
 
@@ -269,6 +324,15 @@ node['opsline-rails-app']['apps'].each do |app_id|
         service service_to_restart[0] do
           provider service_to_restart[1]
           action :restart
+        end
+      end
+      pids_to_signal.each do |pid_to_signal|
+        pid = pid_to_signal[0]
+        signal = pid_to_signal[1]
+        execute "signal #{signal} #{pid}" do
+          user 'root'
+          command "kill -#{signal} #{pid}"
+          action :run
         end
       end
     }

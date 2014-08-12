@@ -50,7 +50,10 @@ node['opsline-rails-app']['apps'].each do |app_id|
   env_dict['RACK_ENV'] = node.chef_environment
   env_dict['RAILS_ENV'] = node.chef_environment
   env_dict['HOME'] = "/home/#{node['opsline-rails-app']['owner']}"
-  env_dict['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rbenv/shims:/home/#{node['opsline-rails-app']['owner']}/.rbenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  env_dict['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  if node['opsline-rails-app']['ruby']['provider'] == 'rbenv'
+    env_dict['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rbenv/shims:/home/#{node['opsline-rails-app']['owner']}/.rbenv/bin:#{env_dict['PATH']}"
+  end
 
   # merge environment from data bag (if there)
   if app_data.has_key?('environment')

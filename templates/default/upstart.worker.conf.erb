@@ -36,6 +36,6 @@ end script
 post-stop script
   if [ -f $APP_DIR/shared/pids/<%= @app_name %>-${index}.pid ]; then
     kill $(cat $APP_DIR/shared/pids/<%= @app_name %>-${index}.pid) 2>/dev/null || true
-    rm -f $APP_DIR/shared/pids/<%= @app_name %>-${index}.pid
+    rm -f $APP_DIR/shared/pids/<%= @app_name %>-${index}.pid 2>/dev/null || true
   fi
 end script

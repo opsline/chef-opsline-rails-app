@@ -11,11 +11,10 @@ env APP_DIR=<%= @deploy_to %>
 respawn
 
 script
-exec /bin/bash -l <<'EOT'
+exec /usr/bin/envdir $APP_DIR/env /bin/bash -l <<'EOT'
   while true; do
     if [ ! -f $APP_DIR/shared/pids/unicorn.<%= @app_name %>.pid ]; then
       # if pid file does not exist, start unicorn
-      source <%= @deploy_to %>/environment
       cd $APP_DIR/current
       bundle exec <%= @exec_command %> >>$APP_DIR/shared/log/upstart.log 2>&1
     else

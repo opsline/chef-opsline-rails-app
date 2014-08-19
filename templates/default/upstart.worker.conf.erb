@@ -25,8 +25,7 @@ instance $index
 env APP_DIR=<%= @deploy_to %>
 
 script
-exec /bin/bash -l <<EOT
-  source <%= @deploy_to %>/environment
+exec /usr/bin/envdir $APP_DIR/env /bin/bash -l <<EOT
   cd $APP_DIR/current
   echo $$ >$APP_DIR/shared/pids/<%= @app_name %>-${index}.pid
   exec bundle exec <%= @exec_command %> >>$APP_DIR/shared/log/upstart-${index}.log 2>&1

@@ -11,8 +11,7 @@ env APP_DIR=<%= @deploy_to %>
 respawn
 
 script
-exec /bin/bash -l <<'EOT'
-  source <%= @deploy_to %>/environment
+exec /usr/bin/envdir $APP_DIR/env /bin/bash -l <<'EOT'
   cd <%= @deploy_to %>/current
   exec bundle exec <%= @exec_command %> >>$APP_DIR/shared/log/upstart.log 2>&1
 EOT

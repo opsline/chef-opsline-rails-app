@@ -21,8 +21,11 @@ node['opsline-rails-app']['apps'].each do |app_id|
   unless app_data.has_key?('deploy_to')
     app_data['deploy_to'] = "#{node['opsline-rails-app']['apps_root']}/#{app_name}"
   end
+  unless app_data.has_key?('artifact_name')
+    app_data['artifact_name'] = app_name
+  end
   unless app_data.has_key?('artifact_location')
-    app_data['artifact_location'] = "s3://s3.amazonaws.com/#{node['opsline-rails-app']['s3_bucket']}/#{app_name}"
+    app_data['artifact_location'] = "s3://s3.amazonaws.com/#{node['opsline-rails-app']['s3_bucket']}/#{app_data['artifact_name']}"
   end
   unless app_data.has_key?('package_type')
     app_data['package_type'] = 'tar.gz'
@@ -51,23 +54,15 @@ node['opsline-rails-app']['apps'].each do |app_id|
   env_dict['RAILS_ENV'] = node.chef_environment
   env_dict['HOME'] = "/home/#{node['opsline-rails-app']['owner']}"
   env_dict['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-  if node['opsline-rails-app']['ruby']['provider'] == 'rbenv'
+  if node['opsline-rails-app']['ruby']['provider'] == 'rvm'
+    env_dict['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rvm/bin:#{env_dict['PATH']}"
+  elsif node['opsline-rails-app']['ruby']['provider'] == 'rbenv'
     env_dict['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rbenv/shims:/home/#{node['opsline-rails-app']['owner']}/.rbenv/bin:#{env_dict['PATH']}"
   end
 
   # merge environment from data bag (if there)
   if app_data.has_key?('environment')
     env_dict.merge!(get_env_value(app_data['environment']))
-  end
-
-  # create environment variables and directory
-  template "#{app_data['deploy_to']}/environment" do
-    action :create
-    source "environment.erb"
-    owner node['opsline-rails-app']['owner']
-    group node['opsline-rails-app']['owner']
-    mode 0644
-    variables({ :env => env_dict })
   end
 
   # install pre-requisite packages
@@ -87,7 +82,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
   # deploy artifact
   artifact_deploy app_name do
     version artifact_version
-    artifact_location "#{app_data['artifact_location']}/#{app_name}-#{artifact_version}.#{app_data['package_type']}"
+    artifact_location "#{app_data['artifact_location']}/#{app_data['artifact_name']}-#{artifact_version}.#{app_data['package_type']}"
     deploy_to app_data['deploy_to']
     owner node['opsline-rails-app']['owner']
     group node['opsline-rails-app']['owner']
@@ -108,14 +103,6 @@ node['opsline-rails-app']['apps'].each do |app_id|
       end
     }
 
-    # before deployment proc
-    # before_deploy Proc.new {
-      # service app_name do
-        # provider Chef::Provider::Service::Upstart
-        # action :stop
-      # end
-    # }
-
     # configure proc
     configure Proc.new {
 
@@ -133,14 +120,22 @@ node['opsline-rails-app']['apps'].each do |app_id|
         unless container_parameters.has_key?('frontend_port')
           container_parameters['frontend_port'] = '8080'
         end
-
         unicorn_config = "#{app_data['deploy_to']}/shared/config/unicorn.rb"
+
+        env_dir app_data do
+          deploy_to app_data['deploy_to']
+          variables env_dict
+          owner node['opsline-rails-app']['owner']
+          group node['opsline-rails-app']['owner']
+          notifies [:restart, "service[#{app_name}]"]
+        end
+
         template unicorn_config do
           source 'unicorn.rb.erb'
           cookbook 'opsline-rails-app'
           owner node['opsline-rails-app']['owner']
           group node['opsline-rails-app']['owner']
-          mode 0444
+          mode 0644
           action :create
           notifies :restart, "service[#{app_name}]"
           variables({
@@ -157,7 +152,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
           cookbook 'opsline-rails-app'
           owner 'root'
           group 'root'
-          mode 0444
+          mode 0644
           action :create
           notifies :restart, "service[#{app_name}]"
           variables({
@@ -249,12 +244,20 @@ node['opsline-rails-app']['apps'].each do |app_id|
 
       # RACK
       elsif app_data['container'] == 'rack'
+        env_dir app_data do
+          deploy_to app_data['deploy_to']
+          variables env_dict
+          owner node['opsline-rails-app']['owner']
+          group node['opsline-rails-app']['owner']
+          notifies [:restart, "service[#{app_name}]"]
+        end
+
         template "/etc/init/#{app_name}.conf" do
           source 'upstart.conf.erb'
           cookbook 'opsline-rails-app'
           owner 'root'
           group 'root'
-          mode 0444
+          mode 0644
           action :create
           notifies :restart, "service[#{app_name}]"
           variables({
@@ -280,12 +283,20 @@ node['opsline-rails-app']['apps'].each do |app_id|
           container_parameters['bundle_exec_command'] = ''
         end
 
+        env_dir app_data do
+          deploy_to app_data['deploy_to']
+          variables env_dict
+          owner node['opsline-rails-app']['owner']
+          group node['opsline-rails-app']['owner']
+          notifies [:restart, "service[#{app_name}]"]
+        end
+
         template "/etc/init/#{app_name}-worker.conf" do
           source 'upstart.worker.conf.erb'
           cookbook 'opsline-rails-app'
           owner 'root'
           group 'root'
-          mode 0444
+          mode 0644
           action :create
           notifies :restart, "service[#{app_name}]"
           variables({
@@ -301,7 +312,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
           cookbook 'opsline-rails-app'
           owner 'root'
           group 'root'
-          mode 0444
+          mode 0644
           action :create
           notifies :restart, "service[#{app_name}]"
           variables({

@@ -1,3 +1,4 @@
+default['opsline-rails-app']['encrypted_databag'] = true
 default['opsline-rails-app']['databag'] = 'apps'
 default['opsline-rails-app']['apps'] = []
 default['opsline-rails-app']['s3_bucket'] = 'applications'

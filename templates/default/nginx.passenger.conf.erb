@@ -1,16 +1,16 @@
 server {
-  listen <%= @port %>;
+  listen <%= @app_data['container_parameters']['frontend_port'] %>;
   server_name <%= @server_name %>;
 
-  access_log <%= @deploy_to %>/shared/log/access.log;
-  error_log <%= @deploy_to %>/shared/log/error.log;
+  access_log /var/log/nginx/<%= @app_name %>_access.log;
+  error_log /var/log/nginx/<%= @app_name %>_error.log;
 
   location / {
-    root <%= @deploy_to %>/current/public;
+    root <%= @app_data['deploy_to'] %>/current/public;
     index index.html index.htm;
     passenger_enabled on;
     passenger_app_env '<%= node.chef_environment %>';
-    <% @env.each do |key, value| -%>
+    <% @app_data['app_env'].each do |key, value| -%>
     passenger_set_cgi_param <%= key %> <%= value %>;
     <% end -%>
   }

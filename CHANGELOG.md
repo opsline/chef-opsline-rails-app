@@ -1,5 +1,9 @@
 # CHANGELOG for opsline-mysql
 
+## 0.6.0
+* adding app data bag inheritance
+* removed environment variables will be deleted
+
 ## 0.5.2
 * nginx setup rewrite
 

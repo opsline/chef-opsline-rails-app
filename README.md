@@ -1,5 +1,5 @@
 # opsline-rails-app Cookbook
-This cookbook configured rails application.
+This cookbook configures rails application.
 
 
 # Requirements

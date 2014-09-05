@@ -11,11 +11,62 @@ node['opsline-rails-app']['apps'].each do |app_id|
     app_data = data_bag_item(node['opsline-rails-app']['databag'], app_id)
   end
 
+  # read inherited data bag item
+  if app_data.has_key?('inherits')
+    if node['opsline-go-app']['encrypted_databag']
+      inherited_data = Chef::EncryptedDataBagItem.load(node['opsline-go-app']['databag'], app_data['inherits']).to_hash
+    else
+      inherited_data = data_bag_item(node['opsline-go-app']['databag'], app_data['inherits'])
+    end
+  else
+    inherited_data = nil
+  end
+
   # get app name
   if app_data.has_key?('name')
     app_name = app_data['name']
   else
     app_name = app_id
+  end
+
+  # initial environment variables hash
+  app_data['app_env'] = {}
+  app_data['app_env']['RACK_ENV'] = node.chef_environment
+  app_data['app_env']['RAILS_ENV'] = node.chef_environment
+  app_data['app_env']['HOME'] = "/home/#{node['opsline-rails-app']['owner']}"
+  app_data['app_env']['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  if node['opsline-rails-app']['ruby']['provider'] == 'rvm'
+    app_data['app_env']['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rvm/bin:#{app_data['app_env']['PATH']}"
+  elsif node['opsline-rails-app']['ruby']['provider'] == 'rbenv'
+    app_data['app_env']['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rbenv/shims:/home/#{node['opsline-rails-app']['owner']}/.rbenv/bin:#{app_data['app_env']['PATH']}"
+  end
+
+  # merge inherited environment
+  unless inherited_data.nil?
+    if inherited_data.has_key?('environment')
+      app_data['app_env'].merge!(get_env_value(inherited_data['environment']))
+    end
+    if inherited_data.has_key?('version')
+      app_data['version'] = inherited_data['version']
+    end
+    if inherited_data.has_key?('type')
+      app_data['type'] = inherited_data['type']
+    end
+    if inherited_data.has_key?('deploy_to')
+      app_data['deploy_to'] = inherited_data['deploy_to']
+    end
+    if inherited_data.has_key?('package_type')
+      app_data['package_type'] = inherited_data['package_type']
+    end
+    if inherited_data.has_key?('artifact_name')
+      app_data['artifact_name'] = inherited_data['artifact_name']
+    end
+    if inherited_data.has_key?('artifact_location')
+      app_data['artifact_location'] = inherited_data['artifact_location']
+    end
+    if inherited_data.has_key?('jenkins_job_name')
+      app_data['jenkins_job_name'] = inherited_data['jenkins_job_name']
+    end
   end
 
   # skip non-rails apps
@@ -48,29 +99,17 @@ node['opsline-rails-app']['apps'].each do |app_id|
     app_data['container_parameters'] = {}
   end
 
+  # merge environment from data bag
+  if app_data.has_key?('environment')
+    app_data['app_env'].merge!(get_env_value(app_data['environment']))
+  end
+
   # create app directory
   directory app_data['deploy_to'] do
     action :create
     owner node['opsline-rails-app']['owner']
     group node['opsline-rails-app']['owner']
     mode 0755
-  end
-
-  # environment variables hash
-  app_data['app_env'] = {}
-  app_data['app_env']['RACK_ENV'] = node.chef_environment
-  app_data['app_env']['RAILS_ENV'] = node.chef_environment
-  app_data['app_env']['HOME'] = "/home/#{node['opsline-rails-app']['owner']}"
-  app_data['app_env']['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-  if node['opsline-rails-app']['ruby']['provider'] == 'rvm'
-    app_data['app_env']['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rvm/bin:#{app_data['app_env']['PATH']}"
-  elsif node['opsline-rails-app']['ruby']['provider'] == 'rbenv'
-    app_data['app_env']['PATH'] = "/home/#{node['opsline-rails-app']['owner']}/.rbenv/shims:/home/#{node['opsline-rails-app']['owner']}/.rbenv/bin:#{app_data['app_env']['PATH']}"
-  end
-
-  # merge environment from data bag (if there)
-  if app_data.has_key?('environment')
-    app_data['app_env'].merge!(get_env_value(app_data['environment']))
   end
 
   # install pre-requisite packages
@@ -211,14 +250,16 @@ node['opsline-rails-app']['apps'].each do |app_id|
         end
 
         if app_data['container_parameters']['frontend'] == 'nginx'
-          services_to_restart << ['nginx', Chef::Provider::Service::Init]
           app_data['container_parameters']['upstream_sockets'] = [
             "#{app_data['deploy_to']}/shared/sockets/#{app_name}.socket"
           ]
 
+          services_to_restart << ['nginx', Chef::Provider::Service::Init]
+
           nginx_app_config "nginx config for #{app_name}" do
             app_name app_name
             app_data app_data
+            template 'nginx.unicorn.conf.erb'
           end
         end
 

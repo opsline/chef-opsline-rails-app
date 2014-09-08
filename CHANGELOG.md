@@ -1,5 +1,8 @@
 # CHANGELOG for opsline-mysql
 
+## 0.6.1
+* fixing env_dir definition
+
 ## 0.6.0
 * adding app data bag inheritance
 * removed environment variables will be deleted

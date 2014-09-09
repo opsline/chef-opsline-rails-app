@@ -9,7 +9,7 @@ define :nginx_app_config, :app_name => nil, :app_data => {}, :template => 'nginx
 
   template "/etc/nginx/sites-available/#{app_name}" do
     source params[:template]
-    cookbook 'opsline-rails-app'
+    cookbook params[:cookbook]
     owner 'root'
     group 'root'
     mode 0644

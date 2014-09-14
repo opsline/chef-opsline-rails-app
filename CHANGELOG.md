@@ -1,5 +1,8 @@
 # CHANGELOG for opsline-mysql
 
+## 0.6.2
+* fixing inheritance
+
 ## 0.6.1
 * fixing env_dir definition
 

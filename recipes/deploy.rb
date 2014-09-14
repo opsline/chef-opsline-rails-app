@@ -13,10 +13,10 @@ node['opsline-rails-app']['apps'].each do |app_id|
 
   # read inherited data bag item
   if app_data.has_key?('inherits')
-    if node['opsline-go-app']['encrypted_databag']
-      inherited_data = Chef::EncryptedDataBagItem.load(node['opsline-go-app']['databag'], app_data['inherits']).to_hash
+    if node['opsline-rails-app']['encrypted_databag']
+      inherited_data = Chef::EncryptedDataBagItem.load(node['opsline-rails-app']['databag'], app_data['inherits']).to_hash
     else
-      inherited_data = data_bag_item(node['opsline-go-app']['databag'], app_data['inherits'])
+      inherited_data = data_bag_item(node['opsline-rails-app']['databag'], app_data['inherits'])
     end
   else
     inherited_data = nil

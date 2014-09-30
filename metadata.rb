@@ -6,7 +6,7 @@ description      'Installs/Configures opsline-rails-app'
 long_description IO.read(File.join(File.dirname(__FILE__), 'README.md'))
 version          '0.6.3'
 
-depends 'artifact'
+depends 'artifact', '= 1.12.1'
 depends 'ruby_build'
 depends 'rbenv', '~> 0.7.2'
 depends 'rvm', '~> 0.9.2'

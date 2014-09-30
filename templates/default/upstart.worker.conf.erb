@@ -27,6 +27,7 @@ env APP_DIR=<%= @deploy_to %>
 script
 exec /usr/bin/envdir $APP_DIR/env /bin/bash -l <<EOT
   cd $APP_DIR/current
+  export WORKER_NAME="$(hostname -s).worker.${index}"
   echo $$ >$APP_DIR/shared/pids/<%= @app_name %>-${index}.pid
   exec bundle exec <%= @exec_command %> >>$APP_DIR/shared/log/upstart-${index}.log 2>&1
 EOT

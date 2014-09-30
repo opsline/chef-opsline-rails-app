@@ -167,7 +167,7 @@ node['opsline-rails-app']['apps'].each do |app_id|
     shared_directories app_data['shared_directories']
     symlinks(app_data['symlinks'])
     action :deploy
-    keep 3
+    keep 2
     force false
 
     # remove log directory before linking

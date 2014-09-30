@@ -1,5 +1,8 @@
 # CHANGELOG for opsline-mysql
 
+## 0.6.3
+* adding WORKER_NAME variable for workers
+
 ## 0.6.2
 * fixing inheritance
 

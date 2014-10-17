@@ -1,5 +1,9 @@
 # CHANGELOG for opsline-mysql
 
+## 0.6.4
+* updating README.md
+* applying Apache License
+
 ## 0.6.3
 * adding WORKER_NAME variable for workers
 
